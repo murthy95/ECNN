@@ -60,6 +60,7 @@ def build_ECNN():
 max_iters = 40
 batch_size = 32
 
+
 sgd = SGD(lr=1e-2, decay=0.0005, momentum=0.9, nesterov=True)
 rmsprop = RMSprop(lr=1e-2, decay=0.0005, rho=0.9)
 adam = Adam(lr=1e-2, decay = 0.0005, beta_1 = 0.9, beta_2 = 0.999)
