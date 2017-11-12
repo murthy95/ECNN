@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from scipy import misc
+import keras
 
 class DataGenerator(object):
   'Generates data for Keras'
@@ -84,12 +85,26 @@ class DataGenerator(object):
           x_grad = self.get_gradient(x_combined)
           x_ref_grad = self.get_gradient(x_ref)
           x_bg_grad = self.get_gradient(x_bg)
-          print x_combined.shape
-          print x_grad.shape
+        #   print x_combined.shape
+        #   print x_grad.shape
           x = np.concatenate((x_combined, x_grad), axis=2)
 
           #can include gradients of reflection also here
-          X[i] = x
-          y[i] = x_bg_grad
+          X[i] = x/255
+          y[i] = x_ref_grad/255
 
       return X, y
+
+
+class training_log(keras.callbacks.Callback):
+    def __init__(self):
+        self.train_loss=[]
+        self.val_loss=[]
+        self.epoch_counter=0
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.train_loss.append(logs.get('loss'))
+        self.val_loss.append(logs.get('val_loss'))
+        self.epoch_counter +=1
+        file_path = 'model_ref_epoch'+str(self.epoch_counter)+'.h5'
+        self.model.save_weights(file_path)

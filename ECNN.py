@@ -2,14 +2,16 @@ import numpy as np
 import os
 import keras
 from keras.models import Sequential
-from keras.layers import Conv2D, Activation, BatchNormalization, Input, Add
+from keras.layers import Conv2D, Activation, BatchNormalization, Input, Add, ZeroPadding2D, Conv2DTranspose
 from keras.models import Model
 from keras.optimizers import SGD, Adam, RMSprop
 import glob
-from classes import DataGenerator
+from classes import DataGenerator, training_log
+from keras.models import load_model
 
 #creating a residual block
 def residual_block(x_input):
+
     conv1 = Conv2D(64, kernel_size=(3,3), strides=(1, 1), padding='same')(x_input)
     bn1 = BatchNormalization()(conv1)
     act1 = Activation('relu')(bn1)
@@ -21,7 +23,7 @@ def residual_block(x_input):
 
 def build_ECNN():
 
-    x_input = Input(shape=(None, None, 4))
+    x_input = Input(shape=(224, 224, 4))
 
     conv1 = Conv2D(64, kernel_size=(3,3), strides=(1, 1), padding='same')(x_input)
     bn1 = BatchNormalization()(conv1)
@@ -32,7 +34,8 @@ def build_ECNN():
     bn2 = BatchNormalization()(conv2)
     act2 = Activation('relu')(bn2)
 
-    conv3 = Conv2D(64, kernel_size=(3,3), strides=(1, 1), padding='same')(act2)
+    pad3 = ZeroPadding2D(padding=(1,1))(act2)
+    conv3 = Conv2D(64, kernel_size=(3,3), strides=(2, 2), padding='valid')(pad3)
     bn3 = BatchNormalization()(conv3)
     act3 = Activation('relu')(bn3)
 
@@ -42,7 +45,8 @@ def build_ECNN():
         concat = residual_block(activation)
         activation = concat
 
-    conv_1 = Conv2D(64, kernel_size=(3,3), strides=(1, 1), padding='same')(activation)
+
+    conv_1 = Conv2DTranspose(64, kernel_size=(2,2), strides=(2,2), padding='valid')(activation)
     bn_1 = BatchNormalization()(conv_1)
     act_1 = Activation('relu')(bn_1)
 
@@ -67,11 +71,15 @@ def read_paths(file_path):
 
 #model summary
 model = build_ECNN()
+
+#load a saved model
+# model = load_model('model_30.h5')
 print model.summary()
 
 #model parameters
+start_epoch = 6
 max_iters = 40
-batch_size = 32
+batch_size = 16
 sgd = SGD(lr=1e-2, decay=0.0005, momentum=0.9, nesterov=True)
 rmsprop = RMSprop(lr=1e-2, decay=0.0005, rho=0.9)
 adam = Adam(lr=1e-2, decay = 0.0005, beta_1 = 0.9, beta_2 = 0.999)
@@ -86,13 +94,20 @@ model.compile(optimizer=sgd, loss='mse')
 params = {'dim_x': 224,
           'dim_y': 224,
           'dim_z': 4,
-          'batch_size': 32,
+          'batch_size': batch_size,
           'shuffle': True}
 
 train_generator = DataGenerator(**params).generate(train_ids)
 val_generator = DataGenerator(**params).generate(val_ids)
-
+#
+# for i in range(max_iters):
+call_back = training_log()
 model.fit_generator(generator = train_generator,
                     steps_per_epoch = len(train_ids)/batch_size,
                     validation_data = val_generator,
-                    validation_steps = len(val_ids)/batch_size)
+                    validation_steps = len(val_ids)/batch_size,
+                    epochs=max_iters,
+                    callbacks = [call_back])
+    # model.save("model" +str(i) + str(start_epoch) + ".h5")
+np.save("val_losses.npy",call_back.val_loss)
+np.save("train_losses.npy",call_back.train_loss)
